@@ -130,6 +130,7 @@ img_input = Input(shape=input_shape_img)
 roi_input = Input(shape=(None, 4))
 
 # define the base network (resnet here, can be VGG, Inception, etc)
+
 print(img_input)
 shared_layers = nn.nn_base(img_input, trainable=True)
 
