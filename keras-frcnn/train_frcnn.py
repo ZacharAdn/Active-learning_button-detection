@@ -36,7 +36,7 @@ parser.add_option("--vf", dest="vertical_flips", help="Augment with vertical fli
 parser.add_option("--rot", "--rot_90", dest="rot_90",
                   help="Augment with 90 degree rotations in training. (Default=false).",
                   action="store_true", default=False)
-parser.add_option("--num_epochs", type="int", dest="num_epochs", help="Number of epochs.", default=5)
+parser.add_option("--num_epochs", type="int", dest="num_epochs", help="Number of epochs.", default=10)
 parser.add_option("--config_filename", dest="config_filename", help=
 "Location to store all the metadata related to the training (to be used when testing).",
                   default="config.pickle")
@@ -162,7 +162,7 @@ model_classifier.compile(optimizer=optimizer_classifier,
                          metrics={'dense_class_{}'.format(len(classes_count)): 'accuracy'})
 model_all.compile(optimizer='sgd', loss='mae')
 
-epoch_length = 100
+epoch_length = 500
 num_epochs = int(options.num_epochs)
 iter_num = 0
 
@@ -289,7 +289,7 @@ for epoch_num in range(num_epochs):
                     print('Loss RPN regression: {}'.format(loss_rpn_regr))
                     print('Loss Detector classifier: {}'.format(loss_class_cls))
                     print('Loss Detector regression: {}'.format(loss_class_regr))
-                    print('Elapsed time: {} minutes'.format((time.time() - start_time)/60))
+                    print('Elapsed time: {} minutes'.format((time.time() - start_time) / 60))
 
                 curr_loss = loss_rpn_cls + loss_rpn_regr + loss_class_cls + loss_class_regr
                 iter_num = 0
