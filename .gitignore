@@ -1,6 +1,9 @@
 .idea/*
 *.xml
 *.iml
+keras-frcnn/results_imgs/*
+data/*
+keras-frcnn/src/*
 
 
 
