@@ -16,7 +16,7 @@ sys.setrecursionlimit(40000)
 
 parser = OptionParser()
 
-parser.add_option("-p", "--path", dest="test_path", help="Path to test data.")
+parser.add_option("-p", "--path", dest="test_path", help="Path to test data.", default="../data/test")
 parser.add_option("-n", "--num_rois", type="int", dest="num_rois",
                   help="Number of ROIs per iteration. Higher means more memory use.", default=32)
 parser.add_option("--config_filename", dest="config_filename", help=
