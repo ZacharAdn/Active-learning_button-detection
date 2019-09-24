@@ -1,6 +1,10 @@
 .idea/*
 *.xml
 *.iml
+*.png
+*.pickle
+*.hdf5
+*.txt
 keras-frcnn/results_imgs/*
 data/*
 keras-frcnn/src/*
