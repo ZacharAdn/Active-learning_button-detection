@@ -95,6 +95,7 @@ def calc_iou(R, img_data, C, class_mapping):
 
 	return np.expand_dims(X, axis=0), np.expand_dims(Y1, axis=0), np.expand_dims(Y2, axis=0), IoUs
 
+
 def apply_regr(x, y, w, h, tx, ty, tw, th):
 	try:
 		cx = x + w/2.
@@ -119,6 +120,7 @@ def apply_regr(x, y, w, h, tx, ty, tw, th):
 	except Exception as e:
 		print(e)
 		return x, y, w, h
+
 
 def apply_regr_np(X, T):
 	try:
@@ -150,6 +152,7 @@ def apply_regr_np(X, T):
 	except Exception as e:
 		print(e)
 		return X
+
 
 def non_max_suppression_fast(boxes, probs, overlap_thresh=0.9, max_boxes=300):
 	# code used from here: http://www.pyimagesearch.com/2015/02/16/faster-non-maximum-suppression-python/
@@ -219,7 +222,7 @@ def non_max_suppression_fast(boxes, probs, overlap_thresh=0.9, max_boxes=300):
 	probs = probs[pick]
 	return boxes, probs
 
-import time
+
 def rpn_to_roi(rpn_layer, regr_layer, C, dim_ordering, use_regr=True, max_boxes=300,overlap_thresh=0.9):
 
 	regr_layer = regr_layer / C.std_scaling

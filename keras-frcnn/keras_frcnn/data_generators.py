@@ -270,6 +270,7 @@ def threadsafe_generator(f):
 		return threadsafe_iter(f(*a, **kw))
 	return g
 
+
 def get_anchor_gt(all_img_data, class_count, C, img_length_calc_function, backend, mode='train'):
 
 	# The following line is not useful with Python 3.5, it is kept for the legacy
@@ -289,10 +290,10 @@ def get_anchor_gt(all_img_data, class_count, C, img_length_calc_function, backen
 
 				# read in image, and optionally add augmentation
 
-				if mode == 'train':
-					img_data_aug, x_img = data_augment.augment(img_data, C, augment=True)
-				else:
-					img_data_aug, x_img = data_augment.augment(img_data, C, augment=False)
+				# if mode == 'train':
+				# 	img_data_aug, x_img = data_augment.augment(img_data, C, augment=True)
+				# else:
+				img_data_aug, x_img = data_augment.augment(img_data, C, augment=False)
 
 				(width, height) = (img_data_aug['width'], img_data_aug['height'])
 				(rows, cols, _) = x_img.shape
