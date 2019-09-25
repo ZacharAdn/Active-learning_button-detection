@@ -36,11 +36,11 @@ def find_squares(img):
             for cnt in contours:
                 cnt_len = cv.arcLength(cnt, True)
                 cnt = cv.approxPolyDP(cnt, 0.02 * cnt_len, True)
-                if len(cnt) == 4 and cv.contourArea(cnt) > 1000 and cv.isContourConvex(cnt):
+                if len(cnt) == 4 and cv.contourArea(cnt) > 100 and cv.isContourConvex(cnt):
                     cnt = cnt.reshape(-1, 2)
-                    max_cos = np.max([angle_cos(cnt[i], cnt[(i + 1) % 4], cnt[(i + 2) % 4]) for i in xrange(4)])
-                    if max_cos < 0.1:
-                        squares.append(cnt)
+                    # max_cos = np.max([angle_cos(cnt[i], cnt[(i + 1) % 4], cnt[(i + 2) % 4]) for i in xrange(4)])
+                    # if max_cos < 0.1:
+                    squares.append(cnt)
     return squares
 
 
@@ -51,7 +51,10 @@ def main():
         print(i)
         img = cv.imread(fn)
         squares = find_squares(img)
-        cv.drawContours(img, squares, -1, (0, 0, 255), 2)
+        # print(len(squares[0]))
+        for s in squares:
+            print(s[0][0])
+            cv.rectangle(img, (s[0][0], s[0][1]), (s[2][0], s[2][1]), (0, 0, 255), 2)
         # cv.imshow('squares', img)
         cv.imwrite(f'data/simple-squares/{i}', img)
 
