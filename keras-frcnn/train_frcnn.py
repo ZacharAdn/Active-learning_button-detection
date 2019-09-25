@@ -165,7 +165,7 @@ model_classifier.compile(optimizer=optimizer_classifier,
                          metrics={'dense_class_{}'.format(len(classes_count)): 'accuracy'})
 model_all.compile(optimizer='sgd', loss='mae')
 
-epoch_length = 100
+epoch_length = 1000
 num_epochs = int(options.num_epochs)
 iter_num = 0
 
