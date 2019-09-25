@@ -10,9 +10,14 @@ import math
 from PIL import Image, ImageDraw, ImageFont
 import numpy as np
 import cv2 as cv
+
 sys.path.append('.')
 from square_detect import find_squares
 from gensim import models
+
+word2vec = models.KeyedVectors.load_word2vec_format(
+    '/homes/zahara/PycharmProjects/text_button_detection/data/GoogleNews-vectors-negative300.bin.gz', binary=True,
+    limit=500000)
 
 
 def ShowBoundingBox(draw, box, width, height, boxColor):
@@ -23,6 +28,7 @@ def ShowBoundingBox(draw, box, width, height, boxColor):
     t = [left, top, left + (width * box['Width']), top + (height * box['Height'])]
     # print(f'Real pixel size: {t}')
     return t[0], t[1], t[2], t[3]
+
 
 def ShowSelectedElement(draw, box, width, height, boxColor):
     left = width * box['Left']
@@ -69,7 +75,7 @@ def DisplayBlockInformation(block):
     print()
 
 
-def process_text_analysis(model, bucket, document):
+def process_text_analysis(bucket, document):
     # Get the document from S3
     s3_connection = boto3.resource('s3')
 
@@ -100,51 +106,33 @@ def process_text_analysis(model, bucket, document):
     # Get the text blocks
     blocks = response['Blocks']
     width, height = image.size
-    print(f'image.size: {image.size}')
+    # print(f'image.size: {image.size}')
     draw = ImageDraw.Draw(image)
-    print('Detected Document Text')
+    # print('Detected Document Text')
 
+    result_words = []
     # Create image showing bounding box/polygon the detected lines/text
     for block in blocks:
 
         draw = ImageDraw.Draw(image)
 
-        # if block['BlockType'] == "KEY_VALUE_SET":
-        #     if block['EntityTypes'][0] == "KEY":
-        #         ShowBoundingBox(draw, block['Geometry']['BoundingBox'], width, height, 'yellow')
-        #     else:
-        #         ShowBoundingBox(draw, block['Geometry']['BoundingBox'], width, height, 'green')
-        #
-        # if block['BlockType'] == 'TABLE':
-        #     ShowBoundingBox(draw, block['Geometry']['BoundingBox'], width, height, 'blue')
-        #
-        # if block['BlockType'] == 'CELL':
-        #         ShowBoundingBox(draw, block['Geometry']['BoundingBox'], width, height, 'red')
-        # if block['BlockType'] == 'SELECTION_ELEMENT':
-        #     if block['SelectionStatus'] == 'SELECTED':
-        #         ShowSelectedElement(draw, block['Geometry']['BoundingBox'], width, height, 'blue')
-
         if block['BlockType'] == 'WORD' and len(block['Text']) > 1:
             text = ''.join([i for i in block['Text'] if i.isalpha()])
             x1, y1, x2, y2 = ShowBoundingBox(draw, block['Geometry']['BoundingBox'], width, height, 'red')
             # DisplayBlockInformation(block)
-            print('location:')
-            print(x1, y1, x2, y2)
-            print('Text:')
-            print(text)
+            # print('location:')
+            # print(x1, y1, x2, y2)
+            # print('Text:')
+            # print(text)
 
-            if text in model:
-                vec = model[text]
+            result_words.append([text, [x1, y1, x2, y2]])
+            if text in word2vec:
+                vec = word2vec[text]
 
-                print(f'Vector: ({len(vec)})')
-                print(vec)
-                print()
-
-            # uncomment to draw polygon for all Blocks
-            # points=[]
-            # for polygon in block['Geometry']['Polygon']:
-            #    points.append((width * polygon['X'], height * polygon['Y']))
-            # draw.polygon((points), outline='blue')
+                # print(f'Vector faund - length:{len(vec)}')
+                # print(vec)
+            # else:
+            #     print('Vector not faund=================================')
 
     # Display the image
     # image.show()
@@ -154,31 +142,30 @@ def process_text_analysis(model, bucket, document):
     np_im = np.array(image)
 
     result = Image.fromarray(np_im.astype(np.uint8))
-    result.save('out.png')
+    # result.save('out.png')
 
-    return len(blocks)
+    return result_words  # len(blocks)
 
 
-def main():
+def ocr():
     s3 = boto3.resource('s3')
     b_name = 'buttunscreenshot'
 
-    # Load pretrained model (since intermediate data is not included, the model cannot be refined with additional data)
-    model = models.KeyedVectors.load_word2vec_format('./data/GoogleNews-vectors-negative300.bin.gz', binary=True)
+    # Load pretrained word2vec (since intermediate data is not included, the word2vec cannot be refined with additional data)
 
     my_bucket = s3.Bucket(b_name)
     for my_bucket_object in my_bucket.objects.all():
         print(my_bucket_object.key)
         document = my_bucket_object.key
-        block_count = process_text_analysis(model,b_name, document)
+        block_count = process_text_analysis(b_name, document)
         print("Blocks detected: " + str(block_count))
     # block_count = process_text_analysis( b_name, 'c46.png')
 
-
-    dog = model['dog']
-    print(dog.shape)
-    print(dog[:10])
+    #
+    # dog = word2vec['dog']
+    # print(dog.shape)
+    # print(dog[:10])
 
 
 if __name__ == "__main__":
-    main()
+    ocr()

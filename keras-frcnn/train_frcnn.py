@@ -3,6 +3,9 @@ import random
 import pprint
 import sys
 import time
+
+import boto3
+import cv2
 import numpy as np
 from optparse import OptionParser
 import pickle
@@ -17,6 +20,9 @@ from keras_frcnn import config, data_generators
 from keras_frcnn import losses as losses
 import keras_frcnn.roi_helpers as roi_helpers
 from keras.utils import generic_utils
+sys.path.append('../')
+from text_classification import process_text_analysis
+
 
 sys.setrecursionlimit(40000)
 
@@ -177,6 +183,10 @@ start_time = time.time()
 best_loss = np.Inf
 
 class_mapping_inv = {v: k for k, v in class_mapping.items()}
+
+s3 = boto3.resource('s3')
+b_name = 'buttunscreenshot'
+
 print('Starting training')
 
 vis = True
@@ -199,7 +209,31 @@ for epoch_num in range(num_epochs):
                         'RPN is not producing bounding boxes that overlap the ground truth boxes. Check RPN settings or keep training.')
 
             X, Y, img_data = next(data_gen_train)
+            print('=============================================================')
+            filepath = img_data['filepath']
+            img_name = filepath.split('/')[-1]
+            print(filepath)
+            # x1s = b['x1']
+            # print([[b['x1'], b['x2'], b['y1'], b['y2']] for b in img_data['bboxes']])
+            res = process_text_analysis(b_name, img_name)
+            print(res)
+            img1 = cv2.imread(filepath)
+            for b in img_data['bboxes']:
+                rx1, ry1, rx2, ry2 = b['x1'], b['y1'], b['x2'], b['y2']
+                cv2.rectangle(img1, (b['x1'], b['y1']), (b['x2'], b['y2']), (0, 0, 255), 2)
+                print('buttun', end=': ')
+                print(b['x1'], b['y1'], b['x2'], b['y2'])
+                for word in res:
+                    dx1, dy1, dx2, dy2 = word[1]
+                    if dx1 > rx1 and dy1 > ry1 and dx2 < rx2 and dy1 < ry2:
+                        print(word[0], end=': ')
+                        print(dx1, dy1, dx2, dy2)
 
+                        cv2.putText(img1, word[0], (rx1, ry1), cv2.FONT_HERSHEY_DUPLEX, 0.5, (0, 0, 255), 1)
+
+            cv2.imwrite('results_imgs/{}'.format(img_name), img1)
+
+            print('=============================================================')
             loss_rpn = model_rpn.train_on_batch(X, Y)
 
             P_rpn = model_rpn.predict_on_batch(X)
@@ -261,7 +295,7 @@ for epoch_num in range(num_epochs):
             # print('=============================================================')
             # y1, x2, y2 = Y1[:, sel_samples, :], X2[:, sel_samples, :], Y2[:, sel_samples, :]
             # print(f'x1: {X}\ny1: {y1}\nx2:{x2}\ny2:{y2}')
-            print('=============================================================')
+            # print('=============================================================')
             loss_class = model_classifier.train_on_batch([X, X2[:, sel_samples, :]],
                                                          [Y1[:, sel_samples, :], Y2[:, sel_samples, :]])
 
