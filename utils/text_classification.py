@@ -1,19 +1,13 @@
 # Analyzes text in a document stored in an S3 bucket. Display polygon box around text and angled text
-import urllib
 
 import boto3
 import io
-from io import BytesIO
 import sys
-
-import math
-from PIL import Image, ImageDraw, ImageFont
+from PIL import Image, ImageDraw
 import numpy as np
-import cv2 as cv
+from gensim import models
 
 sys.path.append('.')
-from square_detect import find_squares
-from gensim import models
 
 word2vec = models.KeyedVectors.load_word2vec_format(
     '/homes/zahara/PycharmProjects/text_button_detection/data/GoogleNews-vectors-negative300.bin.gz', binary=True,
@@ -117,7 +111,8 @@ def process_text_analysis(bucket, document):
         draw = ImageDraw.Draw(image)
 
         if block['BlockType'] == 'WORD' and len(block['Text']) > 1:
-            text = ''.join([i for i in block['Text'] if i.isalpha()])
+            text = ''.join([i if i.isalpha() else '' for i in block['Text']])
+
             x1, y1, x2, y2 = ShowBoundingBox(draw, block['Geometry']['BoundingBox'], width, height, 'red')
             # DisplayBlockInformation(block)
             # print('location:')
@@ -126,8 +121,8 @@ def process_text_analysis(bucket, document):
             # print(text)
 
             result_words.append([text, [x1, y1, x2, y2]])
-            if text in word2vec:
-                vec = word2vec[text]
+            # if text in word2vec:
+            #     vec = word2vec[text]
 
                 # print(f'Vector faund - length:{len(vec)}')
                 # print(vec)
@@ -167,5 +162,8 @@ def ocr():
     # print(dog[:10])
 
 
+
+
 if __name__ == "__main__":
     ocr()
+

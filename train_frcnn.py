@@ -5,7 +5,6 @@ import sys
 import time
 
 import boto3
-import cv2
 import numpy as np
 from optparse import OptionParser
 import pickle
@@ -13,22 +12,23 @@ import pickle
 sys.path.append('.')
 
 from keras import backend as K
-from keras.optimizers import Adam, SGD, RMSprop
+from keras.optimizers import Adam
 from keras.layers import Input
 from keras.models import Model
 from keras_frcnn import config, data_generators
 from keras_frcnn import losses as losses
 import keras_frcnn.roi_helpers as roi_helpers
 from keras.utils import generic_utils
-sys.path.append('../')
-from text_classification import process_text_analysis
+from keras_frcnn.simple_parser import get_data
+from keras_frcnn import resnet as nn
+from utils.text_classification import process_text_analysis
 
 
 sys.setrecursionlimit(40000)
 
 parser = OptionParser()
 
-parser.add_option("-p", "--path", dest="train_path", help="Path to training data.", default="../annotate.txt")
+parser.add_option("-p", "--path", dest="train_path", help="Path to training data.", default="annotate.txt")
 parser.add_option("-o", "--parser", dest="parser", help="Parser to use. One of simple or pascal_voc",
                   default="simple")
 parser.add_option("-n", "--num_rois", type="int", dest="num_rois", help="Number of RoIs to process at once.",
@@ -57,13 +57,6 @@ parser.add_option("--input_weight_path", dest="input_weight_path",
 if not options.train_path:  # if filename is not given
     parser.error('Error: path to training data must be specified. Pass --path to command line')
 
-if options.parser == 'pascal_voc':
-    from keras_frcnn.pascal_voc_parser import get_data
-elif options.parser == 'simple':
-    from keras_frcnn.simple_parser import get_data
-else:
-    raise ValueError("Command line option parser must be one of 'pascal_voc' or 'simple'")
-
 # pass the settings from the command line, and persist them in the config object
 C = config.Config()
 
@@ -73,17 +66,7 @@ C.rot_90 = bool(options.rot_90)
 
 C.model_path = options.output_weight_path
 C.num_rois = int(options.num_rois)
-
-if options.network == 'vgg':
-    C.network = 'vgg'
-    from keras_frcnn import vgg as nn
-elif options.network == 'resnet50':
-    from keras_frcnn import resnet as nn
-
-    C.network = 'resnet50'
-else:
-    print('Not a valid model')
-    raise ValueError
+C.network = 'resnet50'
 
 # check if weight path was passed via command line
 if options.input_weight_path:
@@ -137,6 +120,26 @@ else:
 
 img_input = Input(shape=input_shape_img)
 roi_input = Input(shape=(None, 4))
+'''
+txt_input = Input(shape=(5,))
+
+embedding_dim = 50
+maxlen = 5
+
+x = Embedding(1000, embedding_dim, input_length=maxlen)(txt_input)
+x = Conv1D(128, 5, activation="relu")(x)
+x = GlobalMaxPooling1D()(x)
+x = Dense(10, activation='relu')(x)
+x = Dense(1, activation='sigmoid')(x)
+model_text = Model(txt_input, x)
+
+tokenizer = Tokenizer(num_words=1100)
+
+model_text.compile(optimizer='adam',
+                   loss='binary_crossentropy',
+                   metrics=['accuracy'])
+
+'''
 
 # define the base network (resnet here, can be VGG, Inception, etc)
 
@@ -162,13 +165,13 @@ try:
 except:
     print('Could not load pretrained model weights. Weights can be found in the keras application folder \
 		https://github.com/fchollet/keras/tree/master/keras/applications')
-
 optimizer = Adam(lr=1e-5)
 optimizer_classifier = Adam(lr=1e-5)
 model_rpn.compile(optimizer=optimizer, loss=[losses.rpn_loss_cls(num_anchors), losses.rpn_loss_regr(num_anchors)])
 model_classifier.compile(optimizer=optimizer_classifier,
                          loss=[losses.class_loss_cls, losses.class_loss_regr(len(classes_count) - 1)],
                          metrics={'dense_class_{}'.format(len(classes_count)): 'accuracy'})
+
 model_all.compile(optimizer='sgd', loss='mae')
 
 epoch_length = 1000
@@ -191,6 +194,83 @@ print('Starting training')
 
 vis = True
 
+
+def label_text_buttons(img_data):
+    filepath = img_data['filepath']
+    img_name = filepath.split('/')[-1]
+    res = process_text_analysis(b_name, img_name)
+    # img1 = cv2.imread(filepath)
+
+    for b in img_data['bboxes']:
+        rx1, ry1, rx2, ry2 = b['x1'], b['y1'], b['x2'], b['y2']
+        # cv2.rectangle(img1, (rx1, ry1), (rx2, ry2), (0, 0, 255), 2)
+        bt_word = ''
+        for word in res:
+            dx1, dy1, dx2, dy2 = word[1]
+            if dx1 > rx1 and dy1 > ry1 and dx2 < rx2 and dy1 < ry2:
+                # cv2.putText(img1, word[0], (rx1, ry1), cv2.FONT_HERSHEY_DUPLEX, 0.5, (0, 0, 255), 1)
+                bt_word += f'{word[0]} '
+            elif word[0] != ' ' and word[0] not in button_txt and word[0] not in backgraund_txt:
+                backgraund_txt.append(word[0])
+                # print(f'{word[0]}, bg')
+
+        bt_word = bt_word[:-1]
+        if bt_word != ' ' and bt_word not in button_txt:
+            button_txt.append(bt_word)
+            # print(f'{bt_word}, bt')
+
+    X_text = []
+    y_text = []
+
+    for bt in button_txt:
+        if bt in backgraund_txt:
+            backgraund_txt.remove(bt)
+        X_text.append(bt)
+        y_text.append(1)
+
+    for bg in backgraund_txt:
+        if bg:
+            X_text.append(bg)
+            y_text.append(0)
+
+    return backgraund_txt, button_txt
+
+'''
+text_annotate = False
+if text_annotate:
+    # annotate text-data
+    button_txt = []
+    backgraund_txt = []
+
+    for _ in range(len(train_imgs)):
+        X, Y, img_data = next(data_gen_train)
+        label_text_buttons(img_data)
+
+    for _ in range(len(val_imgs)):
+        X, Y, img_data = next(data_gen_val)
+        label_text_buttons(img_data)
+
+    text_data = open('/homes/zahara/PycharmProjects/text_button_detection/data/text_bt.txt', 'w')
+
+    for bt in button_txt:
+        if bt in backgraund_txt:
+            backgraund_txt.remove(bt)
+        # print(f'{bt}, bt')
+        text_data.write(f'{bt}, bt\n')
+
+    for bg in backgraund_txt:
+        if bg:
+            text_data.write(f'{bg}, bg\n')
+            # print(f'{bg}, bg')
+
+    text_data.close()
+    print('Done text annotation')
+'''
+
+
+button_txt = []
+backgraund_txt = []
+
 for epoch_num in range(num_epochs):
 
     progbar = generic_utils.Progbar(epoch_length)
@@ -209,33 +289,19 @@ for epoch_num in range(num_epochs):
                         'RPN is not producing bounding boxes that overlap the ground truth boxes. Check RPN settings or keep training.')
 
             X, Y, img_data = next(data_gen_train)
-            print('=============================================================')
-            filepath = img_data['filepath']
-            img_name = filepath.split('/')[-1]
-            print(filepath)
-            # x1s = b['x1']
-            # print([[b['x1'], b['x2'], b['y1'], b['y2']] for b in img_data['bboxes']])
-            res = process_text_analysis(b_name, img_name)
-            print(res)
-            img1 = cv2.imread(filepath)
-            for b in img_data['bboxes']:
-                rx1, ry1, rx2, ry2 = b['x1'], b['y1'], b['x2'], b['y2']
-                cv2.rectangle(img1, (b['x1'], b['y1']), (b['x2'], b['y2']), (0, 0, 255), 2)
-                print('buttun', end=': ')
-                print(b['x1'], b['y1'], b['x2'], b['y2'])
-                for word in res:
-                    dx1, dy1, dx2, dy2 = word[1]
-                    if dx1 > rx1 and dy1 > ry1 and dx2 < rx2 and dy1 < ry2:
-                        print(word[0], end=': ')
-                        print(dx1, dy1, dx2, dy2)
 
-                        cv2.putText(img1, word[0], (rx1, ry1), cv2.FONT_HERSHEY_DUPLEX, 0.5, (0, 0, 255), 1)
+            '''
+            X_text, y_text = label_text_buttons(img_data)
 
-            cv2.imwrite('results_imgs/{}'.format(img_name), img1)
+            tokenizer.fit_on_texts(X_text)
+            X_text = tokenizer.texts_to_sequences(X_text)
+            X_text = pad_sequences(X_text, padding='post', maxlen=maxlen)
 
-            print('=============================================================')
+            loss_txt = model_text.train_on_batch(X_text, y_text)
+            pred_text = model_text.predict_on_batch(X_text)
+            '''
+
             loss_rpn = model_rpn.train_on_batch(X, Y)
-
             P_rpn = model_rpn.predict_on_batch(X)
 
             R = roi_helpers.rpn_to_roi(P_rpn[0], P_rpn[1], C, K.image_dim_ordering(), use_regr=True, overlap_thresh=0.7,
@@ -279,8 +345,6 @@ for epoch_num in range(num_epochs):
                     except:
                         # The neg_samples is [[1 0 ]] only, therefore there's no negative sample
                         continue
-                # except:
-                # 	selected_neg_samples = np.random.choice(neg_samples, C.num_rois - len(selected_pos_samples), replace=True).tolist()
 
                 sel_samples = selected_pos_samples + selected_neg_samples
             else:
@@ -291,11 +355,7 @@ for epoch_num in range(num_epochs):
                     sel_samples = random.choice(neg_samples)
                 else:
                     sel_samples = random.choice(pos_samples)
-            #
-            # print('=============================================================')
-            # y1, x2, y2 = Y1[:, sel_samples, :], X2[:, sel_samples, :], Y2[:, sel_samples, :]
-            # print(f'x1: {X}\ny1: {y1}\nx2:{x2}\ny2:{y2}')
-            # print('=============================================================')
+
             loss_class = model_classifier.train_on_batch([X, X2[:, sel_samples, :]],
                                                          [Y1[:, sel_samples, :], Y2[:, sel_samples, :]])
 
@@ -306,9 +366,13 @@ for epoch_num in range(num_epochs):
             losses[iter_num, 3] = loss_class[2]
             losses[iter_num, 4] = loss_class[3]
 
+            # losses[iter_num, 5] = loss_txt[1]
+
             progbar.update(iter_num + 1, [('rpn_cls', losses[iter_num, 0]), ('rpn_regr', losses[iter_num, 1]),
-                                          ('detector_cls', losses[iter_num, 2]),
-                                          ('detector_regr', losses[iter_num, 3])])
+                                          ('detect_cls', losses[iter_num, 2]),
+                                          ('detect_regr', losses[iter_num, 3])
+                                          # ,('text_regr', losses[iter_num, 5])
+                                          ])
 
             iter_num += 1
 
@@ -318,21 +382,23 @@ for epoch_num in range(num_epochs):
                 loss_class_cls = np.mean(losses[:, 2])
                 loss_class_regr = np.mean(losses[:, 3])
                 class_acc = np.mean(losses[:, 4])
+                # loss_txt_cls = np.mean(losses[:, 5])
 
                 mean_overlapping_bboxes = float(sum(rpn_accuracy_for_epoch)) / len(rpn_accuracy_for_epoch)
                 rpn_accuracy_for_epoch = []
 
                 if C.verbose:
-                    print('Mean number of bounding boxes from RPN overlapping ground truth boxes: {}'.format(
+                    print('Mean number of bounding boxes RPN overlapping ground truth boxes: {}'.format(
                         mean_overlapping_bboxes))
-                    print('Classifier accuracy for bounding boxes from RPN: {}'.format(class_acc))
-                    print('Loss RPN classifier: {}'.format(loss_rpn_cls))
-                    print('Loss RPN regression: {}'.format(loss_rpn_regr))
-                    print('Loss Detector classifier: {}'.format(loss_class_cls))
-                    print('Loss Detector regression: {}'.format(loss_class_regr))
+                    print('Accuracy for bounding boxes RPN: {}'.format(class_acc))
+                    print('Loss RPN class: {}'.format(loss_rpn_cls))
+                    print('Loss RPN regress: {}'.format(loss_rpn_regr))
+                    print('Loss Detect class: {}'.format(loss_class_cls))
+                    print('Loss Detect regress: {}'.format(loss_class_regr))
+                    # print('Loss txt: {}'.format(loss_txt_cls))
                     print('Elapsed time: {} minutes'.format((time.time() - start_time) / 60))
 
-                curr_loss = loss_rpn_cls + loss_rpn_regr + loss_class_cls + loss_class_regr
+                curr_loss = loss_rpn_cls + loss_rpn_regr + loss_class_cls + loss_class_regr #+ loss_txt_cls
                 iter_num = 0
                 start_time = time.time()
 
@@ -343,9 +409,10 @@ for epoch_num in range(num_epochs):
                     model_all.save_weights(C.model_path)
 
                 break
+            break
 
         except Exception as e:
-            print('Exception: {}'.format(e))
+            print('Exception at end: {}'.format(e))
             continue
 
 print('Training complete, exiting.')

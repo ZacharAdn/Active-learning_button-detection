@@ -1,1 +1,1 @@
-# Active Learning of text button detection using fasterRCNN
+# Active Learning of text button detection using faster-RCNN
